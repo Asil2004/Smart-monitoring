@@ -219,7 +219,7 @@
 
         function updateStatus() {
             const now = Date.now();
-            if (now - lastSeen > 60000) {
+            if (now - lastSeen > 30000) {
                 statusBox.className = "status-pill offline";
                 statusText.innerText = "TIZIM OFLAYN";
             } else {
