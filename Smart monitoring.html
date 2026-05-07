@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced IoT Monitoring</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary: #00d2ff;
+            --danger: #ff4b2b;
+            --bg: #0b0e14;
+            --card-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        body {
+            background: var(--bg);
+            color: #fff;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+            background: radial-gradient(circle at top right, #1a1f2c, #0b0e14);
+        }
+
+        .navbar {
+            padding: 20px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .pulse-online {
+            width: 10px;
+            height: 10px;
+            background: #00ff88;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 10px #00ff88;
+            margin-right: 8px;
+        }
+
+        .container {
+            padding: 30px;
+            max-width: 1400px;
+            margin: auto;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 25px;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(15px);
+            transition: 0.3s;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 4px;
+            background: var(--primary);
+            opacity: 0.5;
+        }
+
+        .card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(0, 210, 255, 0.2);
+        }
+
+        .card i {
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .value {
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin: 10px 0;
+            letter-spacing: -1px;
+        }
+
+        .unit { font-size: 1rem; color: #888; margin-left: 5px; }
+
+        .gas-status {
+            font-size: 0.85rem;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: rgba(0,255,136,0.1);
+            color: #00ff88;
+        }
+
+        .main-chart {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Xavf rejimi */
+        .danger-alert {
+            animation: danger-glow 1s infinite alternate;
+        }
+
+        @keyframes danger-glow {
+            from { box-shadow: 0 0 10px rgba(255, 75, 43, 0.2); border-color: rgba(255, 75, 43, 0.3); }
+            to { box-shadow: 0 0 30px rgba(255, 75, 43, 0.6); border-color: var(--danger); }
+        }
+
+        .alert-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,0,0,0.1);
+            pointer-events: none;
+            display: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+
+<div class="alert-overlay" id="danger-screen"></div>
+
+<nav class="navbar">
+    <div style="font-size: 1.5rem; font-weight: bold; letter-spacing: 1px;">
+        <i class="fa-solid fa-microchip" style="color: var(--primary);"></i> SMART<span style="color: var(--primary);">CORE</span> PRO
+    </div>
+    <div>
+        <span class="pulse-online"></span> TIZIM STATUSI: ONLAYN
+    </div>
+</nav>
+
+<div class="container">
+    <div class="stats-grid">
+        <div class="card">
+            <i class="fa-solid fa-temperature-half"></i>
+            <div style="color: #888;">HARORAT</div>
+            <div class="value" id="t-val">--<span class="unit">°C</span></div>
+        </div>
+
+        <div class="card">
+            <i class="fa-solid fa-droplet"></i>
+            <div style="color: #888;">NAMLYIK</div>
+            <div class="value" id="h-val">--<span class="unit">%</span></div>
+        </div>
+
+        <div class="card" id="card-mq135">
+            <i class="fa-solid fa-wind"></i>
+            <div style="color: #888;">HAVO SIFATI (MQ-135)</div>
+            <div class="value" id="m135-val">--<span class="unit">PPM</span></div>
+            <span class="gas-status" id="s135">TOZA</span>
+        </div>
+
+        <div class="card" id="card-mq9">
+            <i class="fa-solid fa-gas-pump"></i>
+            <div style="color: #888;">YONUVCHI GAZ (MQ-9)</div>
+            <div class="value" id="m9-val">--<span class="unit">PPM</span></div>
+            <span class="gas-status" id="s9">XAVFSIZ</span>
+        </div>
+
+        <div class="card">
+            <i class="fa-solid fa-sun"></i>
+            <div style="color: #888;">YORUGLIK</div>
+            <div class="value" id="l-val">--<span class="unit">LX</span></div>
+        </div>
+
+        <div class="card" id="card-dist">
+            <i class="fa-solid fa-arrows-left-right"></i>
+            <div style="color: #888;">MASOFA (LASER)</div>
+            <div class="value" id="d-val">--<span class="unit">MM</span></div>
+        </div>
+    </div>
+
+    <div class="main-chart">
+        <h3 style="margin-top: 0; color: #888;"><i class="fa-solid fa-chart-line"></i> REAL VAQTDA GAZ DINAMIKASI</h3>
+        <canvas id="iotChart" height="100"></canvas>
+    </div>
+</div>
+
+<script>
+    // Firebase Konfiguratsiyasi
+    const firebaseConfig = {
+        apiKey: "AIzaSyArkLOSoR0Wmsc6sZZFd_ptsbL_VPCvmI8",
+        databaseURL: "https://smart-monitoring-82bd2-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "smart-monitoring-82bd2"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Chart.js Sozlamalari
+    const ctx = document.getElementById('iotChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                { label: 'MQ-135', data: [], borderColor: '#00d2ff', backgroundColor: 'rgba(0,210,255,0.1)', fill: true, tension: 0.4 },
+                { label: 'MQ-9', data: [], borderColor: '#ff4b2b', backgroundColor: 'rgba(255,75,43,0.1)', fill: true, tension: 0.4 }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#888' } },
+                x: { grid: { display: false }, ticks: { color: '#888' } }
+            },
+            plugins: { legend: { labels: { color: '#fff' } } }
+        }
+    });
+
+    // Ma'lumotlarni qabul qilish
+    db.ref('sensors').on('value', (snap) => {
+        const data = snap.val();
+        if(!data) return;
+
+        // Qiymatlarni yangilash
+        document.getElementById('t-val').innerHTML = `${data.temperature}<span class="unit">°C</span>`;
+        document.getElementById('h-val').innerHTML = `${data.humidity}<span class="unit">%</span>`;
+        document.getElementById('m135-val').innerHTML = `${data.mq135}<span class="unit">PPM</span>`;
+        document.getElementById('m9-val').innerHTML = `${data.mq9}<span class="unit">PPM</span>`;
+        document.getElementById('l-val').innerHTML = `${data.lux}<span class="unit">LX</span>`;
+        document.getElementById('d-val').innerHTML = `${data.distance}<span class="unit">MM</span>`;
+
+        // Gaz Statuslari
+        const s135 = document.getElementById('s135');
+        if(data.mq135 > 1000) { s135.innerText = "ZAHARLI!"; s135.style.color = "red"; }
+        else { s135.innerText = "TOZA"; s135.style.color = "#00ff88"; }
+
+        const s9 = document.getElementById('s9');
+        if(data.mq9 > 600) { s9.innerText = "GAZ SIZISHI!"; s9.style.color = "red"; }
+        else { s9.innerText = "XAVFSIZ"; s9.style.color = "#00ff88"; }
+
+        // Xavf rejimi animatsiyasi
+        const isDanger = data.distance < 200 || data.mq9 > 600 || data.mq135 > 1000;
+        document.getElementById('danger-screen').style.display = isDanger ? 'block' : 'none';
+        if(isDanger) {
+            document.getElementById('card-mq9').classList.add('danger-alert');
+            document.getElementById('card-dist').classList.add('danger-alert');
+        } else {
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('danger-alert'));
+        }
+
+        // Grafikni yangilash
+        const time = new Date().toLocaleTimeString();
+        if(chart.data.labels.length > 20) {
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+            chart.data.datasets[1].data.shift();
+        }
+        chart.data.labels.push(time);
+        chart.data.datasets[0].data.push(data.mq135);
+        chart.data.datasets[1].data.push(data.mq9);
+        chart.update();
+    });
+</script>
+
+</body>
+</html>
