@@ -151,7 +151,7 @@
         <div class="card">
             <i class="fa-solid fa-temperature-half"></i>
             <div style="color: #888;">HARORAT</div>
-            <div class="value" id="t-val">--<span class="unit">°C</span></div>
+            <div class="value" id="t-val">--<span class="unit">Â°C</span></div>
         </div>
 
         <div class="card">
@@ -231,7 +231,7 @@
         if(!data) return;
 
         // Qiymatlarni yangilash
-        document.getElementById('t-val').innerHTML = `${data.temperature}<span class="unit">°C</span>`;
+        document.getElementById('t-val').innerHTML = `${data.temperature}<span class="unit">Â°C</span>`;
         document.getElementById('h-val').innerHTML = `${data.humidity}<span class="unit">%</span>`;
         document.getElementById('m135-val').innerHTML = `${data.mq135}<span class="unit">PPM</span>`;
         document.getElementById('m9-val').innerHTML = `${data.mq9}<span class="unit">PPM</span>`;
