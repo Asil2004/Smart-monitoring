@@ -2,40 +2,42 @@
 <html lang="uz">
 <head>
     <meta charset="UTF-8">
-    <title>SmartCore Pro Dashboard</title>
+    <title>SmartCore Pro | LIVE Dashboard</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { --p: #00d2ff; --d: #ff4b2b; --s: #00ff88; --bg: #0b0e14; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
-        .nav { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 15px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 30px; }
-        .card { background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #333; text-align: center; backdrop-filter: blur(10px); }
-        .card i { font-size: 2rem; color: var(--p); margin-bottom: 15px; }
-        .val { font-size: 2.5rem; font-weight: 800; color: var(--p); }
-        .status { padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; overflow-x: hidden; }
+        .nav { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 30px; }
+        .card { background: rgba(255,255,255,0.05); padding: 30px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1); text-align: center; backdrop-filter: blur(10px); transition: 0.3s; }
+        .card:hover { border-color: var(--p); transform: translateY(-5px); }
+        .card i { font-size: 2.2rem; color: var(--p); margin-bottom: 15px; }
+        .val { font-size: 3rem; font-weight: 800; }
+        .unit { color: #666; margin-left: 5px; font-size: 1rem; }
+        .st { padding: 8px 18px; border-radius: 30px; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
         .online { background: rgba(0,255,136,0.1); color: var(--s); border: 1px solid var(--s); }
         .offline { background: rgba(255,75,43,0.1); color: var(--d); border: 1px solid var(--d); }
-        .chart-box { background: rgba(255,255,255,0.05); border-radius: 20px; padding: 20px; margin-top: 30px; border: 1px solid #333; }
+        .danger-anim { animation: alert 0.6s infinite alternate; border-color: var(--d); }
+        @keyframes alert { from { box-shadow: 0 0 5px var(--d); } to { box-shadow: 0 0 25px var(--d); } }
     </style>
 </head>
 <body>
 
 <div class="nav">
-    <div style="font-size: 1.5rem; font-weight: bold;"><i class="fa-solid fa-microchip"></i> SMARTCORE <span style="color:var(--p)">PRO</span></div>
-    <div id="stat" class="status offline">TIZIM: OFLAYN</div>
+    <div style="font-size: 1.6rem; font-weight: 900; letter-spacing: 1px;"><i class="fa-solid fa-microchip"></i> SMARTCORE PRO</div>
+    <div id="status-pill" class="st offline">OFFLINE</div>
 </div>
 
-<div class="grid">
-    <div class="card"><i class="fa-solid fa-temperature-high"></i><div>HARORAT</div><div class="val" id="t">--</div><span>°C</span></div>
-    <div class="card"><i class="fa-solid fa-droplet"></i><div>NAMLYIK</div><div class="val" id="h">--</div><span>%</span></div>
-    <div class="card"><i class="fa-solid fa-wind"></i><div>HAVO SIFATI</div><div class="val" id="m1">--</div><span>PPM</span></div>
-    <div class="card"><i class="fa-solid fa-gas-pump"></i><div>MQ-9 GAZ</div><div class="val" id="m9">--</div><span>PPM</span></div>
+<div class="container">
+    <div class="grid">
+        <div class="card"><i class="fa-solid fa-thermometer"></i><div style="color:#888">HARORAT</div><div class="val" id="t">--</div><span class="unit">°C</span></div>
+        <div class="card"><i class="fa-solid fa-droplet"></i><div style="color:#888">NAMLYIK</div><div class="val" id="h">--</div><span class="unit">%</span></div>
+        <div class="card" id="mq135-card"><i class="fa-solid fa-smog"></i><div style="color:#888">HAVO SIFATI</div><div class="val" id="m135">--</div><span class="unit">ppm</span></div>
+        <div class="card" id="mq9-card"><i class="fa-solid fa-gas-pump"></i><div style="color:#888">MQ-9 GAZ</div><div class="val" id="m9">--</div><span class="unit">ppm</span></div>
+    </div>
 </div>
-
-<div class="chart-box"><canvas id="myChart" height="100"></canvas></div>
 
 <script>
     const firebaseConfig = {
@@ -43,39 +45,36 @@
         databaseURL: "https://smart-monitoring-82bd2-default-rtdb.asia-southeast1.firebasedatabase.app",
         projectId: "smart-monitoring-82bd2"
     };
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const ctx = document.getElementById('myChart').getContext('2d');
-    const chart = new Chart(ctx, {
-        type: 'line',
-        data: { labels: [], datasets: [{ label: 'MQ-135', data: [], borderColor: '#00d2ff' }, { label: 'MQ-9', data: [], borderColor: '#ff4b2b' }] },
-        options: { plugins: { legend: { labels: { color: '#fff' } } } }
-    });
-
-    db.ref('sensors').on('value', (s) => {
-        const d = s.val();
+    // SENSORLARNI YANGILASH
+    db.ref('sensors').on('value', (snap) => {
+        const d = snap.val();
         if(!d) return;
+        
         document.getElementById('t').innerText = d.temperature;
         document.getElementById('h').innerText = d.humidity;
-        document.getElementById('m1').innerText = d.mq135;
+        document.getElementById('m135').innerText = d.mq135;
         document.getElementById('m9').innerText = d.mq9;
 
-        const now = new Date().toLocaleTimeString();
-        if(chart.data.labels.length > 15) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); chart.data.datasets[1].data.shift(); }
-        chart.data.labels.push(now);
-        chart.data.datasets[0].data.push(d.mq135);
-        chart.data.datasets[1].data.push(d.mq9);
-        chart.update();
+        // XAVFNI KO'RSATISH
+        if(d.mq9 > 1000) document.getElementById('mq9-card').classList.add('danger-anim');
+        else document.getElementById('mq9-card').classList.remove('danger-anim');
+        
+        if(d.mq135 > 1500) document.getElementById('mq135-card').classList.add('danger-anim');
+        else document.getElementById('mq135-card').classList.remove('danger-anim');
     });
 
-    db.ref('last_seen').on('value', (s) => {
-        const last = s.val();
+    // ONLINE STATUSNI TEKSHIRISH
+    db.ref('last_seen').on('value', (snap) => {
+        const last = snap.val();
         setInterval(() => {
             const isOnline = (Date.now() - last < 15000);
-            const el = document.getElementById('stat');
-            el.className = isOnline ? "status online" : "status offline";
-            el.innerText = isOnline ? "TIZIM: ONLAYN" : "TIZIM: OFLAYN";
+            const pill = document.getElementById('status-pill');
+            pill.className = isOnline ? "st online" : "st offline";
+            pill.innerText = isOnline ? "ONLINE" : "OFFLINE";
         }, 5000);
     });
 </script>
